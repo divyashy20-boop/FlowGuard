@@ -21,7 +21,7 @@ FlowGuard is a locally runnable, multi-tenant workflow and evidence-intelligence
 ## Local setup
 
 1. Copy `.env.example` to `.env` and `apps/web/.env.example` to `apps/web/.env`.
-2. Set `JWT_SECRET` to at least 32 characters and `SEED_ADMIN_PASSWORD` to at least 16 characters in `.env`.
+2. Set `POSTGRES_PASSWORD` and the password in `DATABASE_URL` to the same local value; replace the `JWT_SECRET` placeholder with at least 32 characters and set `SEED_ADMIN_PASSWORD` to at least 16 characters.
 3. Start PostgreSQL: `docker compose up -d postgres`.
 4. Install the locked dependencies: `npm ci`.
 5. Generate Prisma client and apply migrations: `npm run db:generate`, then `npm run db:migrate`.
@@ -37,3 +37,4 @@ For the full synthetic walkthrough, configuration and production limits, see [do
 This build is not production-deployed or an official compliance system. Production use needs a security review, durable private object storage, configured malware scanning, managed backups, monitoring, deployment hardening and verification of applicable rules by authorized experts. Optional external integrations are not configured.
 
 AI-assisted extraction is not proof of authenticity or an approval decision. Institution identity must not be merged based only on similar names or a shared promoter. External identifiers retain their issuer and namespace; the application does not invent official identifiers.
+

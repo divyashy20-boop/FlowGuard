@@ -9,7 +9,7 @@ From the repository root in PowerShell:
 ```powershell
 Copy-Item .env.example .env
 Copy-Item apps/web/.env.example apps/web/.env
-# Set JWT_SECRET (at least 32 characters) and SEED_ADMIN_PASSWORD (at least 16 characters) in .env.
+# Set POSTGRES_PASSWORD and the DATABASE_URL password to the same local value. Set JWT_SECRET (32+ chars) and SEED_ADMIN_PASSWORD (16+ chars) in .env.
 docker compose up -d postgres
 npm ci
 npm run db:generate
@@ -51,7 +51,7 @@ Never reset the database for this setup. Apply the checked-in migrations in time
 
 ## Configuration and production limits
 
-- `DATABASE_URL`, `JWT_SECRET`, `PORT`, `NODE_ENV`, `WEB_ORIGIN`, `WORKER_POLL_INTERVAL_MS`, `FLOWGUARD_MAX_UPLOAD_BYTES`, `FLOWGUARD_STORAGE_DIR`, and `SEED_ADMIN_PASSWORD` are the local API settings. Keep `.env` private and outside archives.
+- `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`, `PORT`, `NODE_ENV`, `WEB_ORIGIN`, `WORKER_POLL_INTERVAL_MS`, `FLOWGUARD_MAX_UPLOAD_BYTES`, `FLOWGUARD_STORAGE_DIR`, and `SEED_ADMIN_PASSWORD` are the local API settings. Keep `.env` private and outside archives.
 - `VITE_API_URL` is a public build-time API origin, not a secret. Configure it for the deployment origin and restrict CORS accordingly.
 - Local private-file storage must be replaced or backed by a durable private object-storage adapter for multi-instance production. Configure a real malware-scanner adapter before granting access to scanned documents. `NOT_CONFIGURED` intentionally leaves documents quarantined.
 - Email delivery is an adapter stub; current notifications are in-app. OCR is local. Scanned-PDF OCR additionally needs Poppler `pdftoppm`. AI extraction, external source ingestion, official AICTE credentials, and external identifier verification are not configured.
@@ -68,3 +68,4 @@ npm test
 ```
 
 The Part 4 delivery report distinguishes these checks from work that could not be verified in the restricted current environment.
+
