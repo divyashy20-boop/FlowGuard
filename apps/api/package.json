@@ -1,0 +1,39 @@
+{
+  "name": "@flowguard/api",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "worker": "tsx src/worker.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "db:generate": "prisma generate --schema ../../database/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema ../../database/schema.prisma",
+    "db:seed": "tsx ../../database/seed.ts",
+    "db:seed:demo": "tsx ../../database/demo-seed.ts"
+  },
+  "dependencies": {
+    "@flowguard/contracts": "*",
+    "@flowguard/domain": "*",
+    "@prisma/client": "^6.5.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/node": "^22.13.10",
+    "@types/supertest": "^7.2.1",
+    "prisma": "^6.5.0",
+    "supertest": "^7.3.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}

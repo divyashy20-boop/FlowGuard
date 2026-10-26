@@ -1,0 +1,696 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  REVIEWER
+  INSTITUTION_USER
+  AUDITOR
+}
+
+enum InstitutionType {
+  ENGINEERING
+  MANAGEMENT
+  PHARMACY
+  OTHER
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  DEFICIENCY_RAISED
+  RESUBMITTED
+  DECISION_ISSUED
+}
+
+enum DeficiencyStatus {
+  OPEN
+  RESPONSE_SUBMITTED
+  CLOSED
+}
+
+enum ReviewStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum DecisionOutcome {
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum DocumentStatus {
+  QUARANTINED
+  SCANNING
+  AVAILABLE
+  REJECTED
+}
+
+enum ObligationStatus {
+  OPEN
+  IN_PROGRESS
+  FULFILLED
+  OVERDUE
+  WAIVED
+}
+
+enum DocumentProcessingState {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum ScanResult {
+  NOT_CONFIGURED
+  CLEAN
+  INFECTED
+  ERROR
+}
+
+enum JobType {
+  PROCESS_DOCUMENT
+  ANALYZE_COMPLIANCE
+  MATCH_APPLICATION
+  INGEST_FIXTURE
+  INGEST_LOCAL
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  RETRY
+  COMPLETED
+  DEAD_LETTER
+}
+
+enum FindingSeverity {
+  INFO
+  WARNING
+  HIGH
+}
+
+enum FindingStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+enum MatchReviewStatus {
+  SUGGESTED
+  CONFIRMED_POTENTIAL
+  DISMISSED
+  DEFERRED
+}
+
+enum IngestionBatchStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum IngestionRecordStatus {
+  NEEDS_REVIEW
+  LINKED
+  CREATED
+  IGNORED
+}
+
+model Tenant {
+  id           String        @id @default(cuid())
+  name         String
+  createdAt    DateTime      @default(now())
+  memberships  Membership[]
+  institutions Institution[]
+  applications Application[]
+  auditEvents  AuditEvent[]
+  deficiencies Deficiency[]
+  reviews      Review[]
+  inspections  Inspection[]
+  evcAssessments EvcAssessment[]
+  jobs          BackgroundJob[]
+  findings      ComplianceFinding[]
+  analyses      ComplianceAnalysis[]
+  notifications Notification[]
+  ingestionBatches IngestionBatch[]
+  matchCandidates MatchCandidate[]
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String
+  passwordHash String
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  memberships  Membership[]
+  auditEvents  AuditEvent[] @relation("AuditActor")
+  notifications Notification[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  tenantId  String
+  role      Role
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([userId, tenantId])
+  @@index([tenantId, active])
+}
+
+model Promoter {
+  id           String        @id @default(cuid())
+  name         String
+  legalType    String?
+  createdAt    DateTime      @default(now())
+  institutions Institution[]
+}
+
+model Institution {
+  id              String               @id @default(cuid())
+  tenantId        String
+  promoterId      String?
+  name            String
+  institutionType InstitutionType
+  createdByUserId String
+  archivedAt      DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  tenant          Tenant               @relation(fields: [tenantId], references: [id])
+  promoter        Promoter?            @relation(fields: [promoterId], references: [id])
+  campuses        Campus[]
+  applications    Application[]
+  externalIds     ExternalIdentifier[]
+  approvals       Approval[]
+  obligations     Obligation[]
+  candidateImportRecords IngestionRecord[] @relation("ImportCandidateInstitution")
+  resolvedImportRecords IngestionRecord[] @relation("ImportResolvedInstitution")
+
+  @@index([tenantId, name])
+}
+
+model Campus {
+  id              String               @id @default(cuid())
+  institutionId   String
+  name            String
+  address         String?
+  createdAt       DateTime             @default(now())
+  institution     Institution          @relation(fields: [institutionId], references: [id])
+  applications    Application[]
+  externalIds     ExternalIdentifier[]
+  courseOfferings CourseOffering[]
+}
+
+model Programme {
+  id           String           @id @default(cuid())
+  name         String
+  discipline   String?
+  createdAt    DateTime         @default(now())
+  offerings    CourseOffering[]
+  applications Application[]
+}
+
+model CourseOffering {
+  id             String    @id @default(cuid())
+  programmeId    String
+  campusId       String
+  academicYear   String
+  approvedIntake Int?
+  createdAt      DateTime  @default(now())
+  programme      Programme @relation(fields: [programmeId], references: [id])
+  campus         Campus    @relation(fields: [campusId], references: [id])
+
+  @@unique([programmeId, campusId, academicYear])
+}
+
+model Application {
+  id                String               @id @default(cuid())
+  tenantId          String
+  institutionId     String
+  campusId          String?
+  programmeId       String?
+  applicationNumber String?
+  status            ApplicationStatus    @default(DRAFT)
+  academicYear      String
+  submittedAt       DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  tenant            Tenant               @relation(fields: [tenantId], references: [id])
+  institution       Institution          @relation(fields: [institutionId], references: [id])
+  campus            Campus?              @relation(fields: [campusId], references: [id])
+  programme         Programme?           @relation(fields: [programmeId], references: [id])
+  documents         Document[]
+  deficiencies      Deficiency[]
+  reviews           Review[]
+  inspections       Inspection[]
+  evcAssessments    EvcAssessment[]
+  decisions         FormalDecision[]
+  externalIds       ExternalIdentifier[]
+  complianceFindings ComplianceFinding[]
+  complianceAnalysis ComplianceAnalysis?
+  matchCandidatesAsLeft MatchCandidate[] @relation("MatchLeft")
+  matchCandidatesAsRight MatchCandidate[] @relation("MatchRight")
+  workflowId        String?
+  workflow          WorkflowDefinition?  @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([institutionId, academicYear])
+}
+
+model ExternalIdentifier {
+  id              String       @id @default(cuid())
+  issuer          String
+  namespace       String
+  value           String
+  sourceReference String?
+  verifiedAt      DateTime?
+  effectiveFrom   DateTime?
+  effectiveTo     DateTime?
+  institutionId   String?
+  campusId        String?
+  applicationId   String?
+  institution     Institution? @relation(fields: [institutionId], references: [id])
+  campus          Campus?      @relation(fields: [campusId], references: [id])
+  application     Application? @relation(fields: [applicationId], references: [id])
+  createdAt       DateTime     @default(now())
+
+  @@index([issuer, namespace, value])
+}
+
+model Document {
+  id               String                @id @default(cuid())
+  applicationId    String
+  storageKey       String
+  originalName     String
+  mimeType         String
+  checksumSha256   String
+  version          Int                   @default(1)
+  status           DocumentStatus        @default(QUARANTINED)
+  processingState  DocumentProcessingState @default(QUEUED)
+  scanResult       ScanResult             @default(NOT_CONFIGURED)
+  processingError  String?
+  processingWarnings Json?
+  processingAttempts Int                  @default(0)
+  uploadedByUserId String
+  uploadedAt       DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  application      Application           @relation(fields: [applicationId], references: [id])
+  extractions      EvidenceExtraction[]
+  requirementLinks RequirementEvidence[]
+  reviewEvents     EvidenceReviewEvent[]
+
+  @@unique([applicationId, storageKey])
+  @@index([applicationId, uploadedAt])
+  @@index([applicationId, originalName, version])
+}
+
+model EvidenceExtraction {
+  id               String    @id @default(cuid())
+  documentId       String
+  fieldName        String
+  extractedValue   Json
+  confidence       Float
+  pageNumber       Int?
+  sourceText       String?
+  humanVerified    Boolean   @default(false)
+  verifiedByUserId String?
+  verifiedAt       DateTime?
+  verifiedValue    Json?
+  extractor        String    @default("RULES")
+  extractorVersion String   @default("rules-v1")
+  confidenceBasis  String    @default("HEURISTIC_UNCALIBRATED")
+  sourceRunId      String?
+  fieldOrdinal     Int?
+  createdAt        DateTime  @default(now())
+  document         Document  @relation(fields: [documentId], references: [id])
+  reviewEvents     EvidenceReviewEvent[]
+
+  @@index([documentId, fieldName, createdAt])
+  @@unique([sourceRunId, fieldOrdinal])
+}
+
+model EvidenceReviewEvent {
+  id                  String   @id @default(cuid())
+  extractionId        String
+  actorUserId         String
+  action              String
+  originalValue       Json
+  reviewedValue       Json
+  notes               String?
+  createdAt           DateTime @default(now())
+  extraction          EvidenceExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+
+  @@index([extractionId, createdAt])
+}
+
+model WorkflowDefinition {
+  id           String        @id @default(cuid())
+  category     String
+  version      Int
+  config       Json
+  active       Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  requirements Requirement[]
+  applications Application[]
+
+  @@unique([category, version])
+}
+
+model Requirement {
+  id          String                @id @default(cuid())
+  workflowId  String
+  code        String
+  description String
+  mandatory   Boolean               @default(true)
+  createdAt   DateTime              @default(now())
+  workflow    WorkflowDefinition    @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  evidence    RequirementEvidence[]
+  complianceFindings ComplianceFinding[]
+
+  @@unique([workflowId, code])
+}
+
+model Deficiency {
+  id            String           @id @default(cuid())
+  tenantId      String
+  applicationId String
+  code          String
+  description   String
+  status        DeficiencyStatus @default(OPEN)
+  responseText  String?
+  responseSubmittedByUserId String?
+  responseSubmittedAt DateTime?
+  raisedAt      DateTime         @default(now())
+  closedAt      DateTime?
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  application   Application      @relation(fields: [applicationId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([applicationId, status])
+}
+
+model Review {
+  id            String       @id @default(cuid())
+  tenantId      String
+  applicationId String
+  reviewerId    String
+  status        ReviewStatus @default(PENDING)
+  notes         String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
+  application   Application  @relation(fields: [applicationId], references: [id])
+
+  @@index([tenantId, status])
+}
+
+model Inspection {
+  id            String      @id @default(cuid())
+  tenantId      String
+  applicationId String
+  scheduledAt   DateTime?
+  completedAt   DateTime?
+  outcome       String?
+  findings      String?
+  createdByUserId String
+  createdAt     DateTime    @default(now())
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  application   Application @relation(fields: [applicationId], references: [id])
+
+  @@index([tenantId, applicationId, createdAt])
+}
+
+model EvcAssessment {
+  id            String      @id @default(cuid())
+  tenantId      String
+  applicationId String
+  committeeReference String?
+  assessedAt    DateTime?
+  outcome       String?
+  findings      String?
+  createdByUserId String
+  createdAt     DateTime    @default(now())
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  application   Application @relation(fields: [applicationId], references: [id])
+
+  @@index([tenantId, applicationId, createdAt])
+}
+
+model FormalDecision {
+  id               String          @id @default(cuid())
+  applicationId    String
+  outcome          DecisionOutcome
+  issuedAt         DateTime
+  authority        String
+  reference        String?
+  letterStorageKey String?
+  createdAt        DateTime        @default(now())
+  application      Application     @relation(fields: [applicationId], references: [id])
+  approval         Approval?
+}
+
+model Approval {
+  id              String    @id @default(cuid())
+  institutionId   String
+  decisionId      String?   @unique
+  programmeName   String
+  academicYear    String
+  validFrom       DateTime?
+  validTo         DateTime?
+  sourceReference String?
+  verifiedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  institution     Institution @relation(fields: [institutionId], references: [id])
+  decision        FormalDecision? @relation(fields: [decisionId], references: [id])
+
+  @@index([institutionId, academicYear])
+}
+
+model Obligation {
+  id              String    @id @default(cuid())
+  institutionId   String
+  title           String
+  dueAt           DateTime?
+  status          ObligationStatus @default(OPEN)
+  sourceReference String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  institution     Institution @relation(fields: [institutionId], references: [id])
+
+  @@index([institutionId, status])
+}
+
+model AuditEvent {
+  id           String   @id @default(cuid())
+  tenantId     String
+  actorUserId  String?
+  action       String
+  resourceType String
+  resourceId   String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  actor        User?    @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([resourceType, resourceId])
+}
+
+model OutboxEvent {
+  id            String    @id @default(cuid())
+  eventType     String
+  aggregateType String
+  aggregateId   String
+  payload       Json
+  attempts      Int       @default(0)
+  availableAt   DateTime  @default(now())
+  processedAt   DateTime?
+  idempotencyKey String?  @unique
+  lockedAt      DateTime?
+  lockOwner     String?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+
+  @@index([processedAt, availableAt])
+}
+
+model BackgroundJob {
+  id             String   @id @default(cuid())
+  tenantId       String
+  type           JobType
+  status         JobStatus @default(PENDING)
+  idempotencyKey String   @unique
+  payload        Json
+  attempts       Int      @default(0)
+  maxAttempts    Int      @default(5)
+  progress       Int      @default(0)
+  progressMessage String?
+  availableAt    DateTime @default(now())
+  lockedAt       DateTime?
+  lockOwner      String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([status, availableAt, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+model ComplianceAnalysis {
+  id             String   @id @default(cuid())
+  tenantId       String
+  applicationId  String   @unique
+  readinessEstimate Int
+  ruleVersion    String
+  summary        Json
+  computedAt     DateTime @default(now())
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  application    Application @relation(fields: [applicationId], references: [id])
+
+  @@index([tenantId, computedAt])
+}
+
+model ComplianceFinding {
+  id              String         @id @default(cuid())
+  tenantId        String
+  applicationId   String
+  requirementId   String?
+  dedupeKey       String         @unique
+  code            String
+  severity        FindingSeverity
+  title           String
+  explanation     String
+  evidenceReferences Json
+  ruleVersion     String
+  status          FindingStatus  @default(OPEN)
+  resolutionNotes String?
+  resolvedByUserId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  lastRefreshedAt DateTime       @default(now())
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  application     Application    @relation(fields: [applicationId], references: [id])
+  requirement     Requirement?   @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, applicationId, status])
+  @@index([applicationId, code])
+}
+
+model MatchCandidate {
+  id                  String           @id @default(cuid())
+  tenantId            String
+  leftApplicationId   String
+  rightApplicationId  String
+  score               Float
+  reasons             Json
+  evidenceReferences  Json
+  reviewStatus        MatchReviewStatus @default(SUGGESTED)
+  reviewNotes         String?
+  reviewedByUserId    String?
+  reviewedAt          DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  tenant              Tenant           @relation(fields: [tenantId], references: [id])
+  leftApplication     Application      @relation("MatchLeft", fields: [leftApplicationId], references: [id])
+  rightApplication    Application      @relation("MatchRight", fields: [rightApplicationId], references: [id])
+
+  @@unique([leftApplicationId, rightApplicationId])
+  @@index([tenantId, reviewStatus, createdAt])
+}
+
+model Notification {
+  id           String   @id @default(cuid())
+  tenantId     String
+  userId       String
+  type         String
+  title        String
+  message      String
+  resourceType String?
+  resourceId   String?
+  createdAt    DateTime @default(now())
+  readAt       DateTime?
+  idempotencyKey String? @unique
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, userId, readAt, createdAt])
+}
+
+model IngestionBatch {
+  id                String   @id @default(cuid())
+  tenantId          String
+  createdByUserId   String
+  sourceName        String
+  sourceType        String
+  sourceReference   String?
+  sourceChecksum    String?
+  idempotencyKey    String   @unique
+  status            IngestionBatchStatus @default(QUEUED)
+  totalRecords      Int      @default(0)
+  stagedRecords     Int      @default(0)
+  linkedRecords     Int      @default(0)
+  ignoredRecords    Int      @default(0)
+  errorSummary      String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  records           IngestionRecord[]
+
+  @@index([tenantId, status, createdAt])
+}
+
+model IngestionRecord {
+  id                    String   @id @default(cuid())
+  batchId               String
+  sourceRecordKey       String
+  normalizedData        Json
+  status                IngestionRecordStatus @default(NEEDS_REVIEW)
+  candidateInstitutionId String?
+  candidateScore        Float?
+  matchReasons          Json?
+  resolvedInstitutionId String?
+  reviewNotes           String?
+  reviewedByUserId      String?
+  reviewedAt            DateTime?
+  createdAt             DateTime @default(now())
+  batch                 IngestionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  candidateInstitution  Institution? @relation("ImportCandidateInstitution", fields: [candidateInstitutionId], references: [id], onDelete: SetNull)
+  resolvedInstitution   Institution? @relation("ImportResolvedInstitution", fields: [resolvedInstitutionId], references: [id], onDelete: SetNull)
+
+  @@unique([batchId, sourceRecordKey])
+  @@index([batchId, status])
+}
+
+model RequirementEvidence {
+  id             String      @id @default(cuid())
+  requirementId  String
+  documentId     String
+  linkedByUserId String
+  createdAt      DateTime    @default(now())
+  requirement    Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  document       Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([requirementId, documentId])
+  @@index([documentId])
+  @@index([requirementId])
+}

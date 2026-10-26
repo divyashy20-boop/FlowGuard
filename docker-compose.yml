@@ -1,0 +1,15 @@
+﻿services:
+  postgres:
+    image: postgres:16
+    container_name: flowguard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flowguard
+      POSTGRES_PASSWORD: flowguard_dev_password
+      POSTGRES_DB: flowguard
+    ports:
+      - "5432:5432"
+    volumes:
+      - flowguard_pgdata:/var/lib/postgresql/data
+volumes:
+  flowguard_pgdata:

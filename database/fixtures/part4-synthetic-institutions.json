@@ -1,0 +1,25 @@
+{
+  "records": [
+    {
+      "sourceRecordKey": "SIH-DEMO-001",
+      "name": "Northstar Demonstration Institute",
+      "institutionType": "ENGINEERING",
+      "address": "Fictional Demo District, Example State",
+      "promoterName": "Northstar Learning Trust"
+    },
+    {
+      "sourceRecordKey": "SIH-DEMO-002",
+      "name": "Northstar Demonstration Annex",
+      "institutionType": "ENGINEERING",
+      "address": "Fictional Demo District, Example State",
+      "promoterName": "Northstar Learning Trust"
+    },
+    {
+      "sourceRecordKey": "SIH-DEMO-003",
+      "name": "Blue Cedar Management School",
+      "institutionType": "MANAGEMENT",
+      "address": "Imaginary Campus Road, Example State",
+      "promoterName": "Blue Cedar Education Society"
+    }
+  ]
+}
