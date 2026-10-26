@@ -16,6 +16,7 @@ import { registerRegistryRoutes } from "./registry-routes";
 import { registerJobRoutes } from "./job-routes";
 import { registerMatchingRoutes } from "./matching-routes";
 import { registerIngestionRoutes } from "./ingestion-routes";
+import { loginAttemptKey, loginThrottle } from "./login-throttle";
 
 const app = express();
 
@@ -50,19 +51,30 @@ app.post("/auth/login", async (req, res, next) => {
       return res.status(400).json({ error: "Invalid login input" });
     }
 
+    const throttleKey = loginAttemptKey(req.ip ?? req.socket.remoteAddress ?? "unknown", parsed.data.email);
+    const retryAfter = loginThrottle.retryAfter(throttleKey);
+    if (retryAfter) {
+      res.setHeader("Retry-After", String(retryAfter));
+      return res.status(429).json({ error: "Too many failed login attempts. Try again later." });
+    }
+
     const user = await prisma.user.findUnique({
       where: { email: parsed.data.email.toLowerCase() },
       include: { memberships: { where: { active: true } } }
     });
 
     if (!user || !user.active || user.memberships.length === 0) {
+      loginThrottle.recordFailure(throttleKey);
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
     const passwordOk = await bcrypt.compare(parsed.data.password, user.passwordHash);
     if (!passwordOk) {
+      loginThrottle.recordFailure(throttleKey);
       return res.status(401).json({ error: "Invalid email or password" });
     }
+
+    loginThrottle.reset(throttleKey);
 
     const membership = user.memberships[0];
     const token = jwt.sign({
@@ -142,7 +154,19 @@ app.get("/institutions", requireAuth, async (req, res, next) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 120) : "";
     const items = await prisma.institution.findMany({
-      where: { tenantId: req.authUser!.tenantId, archivedAt: null, ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { promoter: { name: { contains: q, mode: "insensitive" } } }, { externalIds: { some: { OR: [{ value: { contains: q, mode: "insensitive" } }, { namespace: { contains: q, mode: "insensitive" } }, { issuer: { contains: q, mode: "insensitive" } }] } }] } : {}) },
+      where: {
+        tenantId: req.authUser!.tenantId,
+        archivedAt: null,
+        ...(q ? { OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { promoter: { name: { contains: q, mode: "insensitive" } } },
+          { externalIds: { some: { OR: [
+            { value: { contains: q, mode: "insensitive" } },
+            { namespace: { contains: q, mode: "insensitive" } },
+            { issuer: { contains: q, mode: "insensitive" } }
+          ] } } }
+        ] } : {})
+      },
       select: { id: true, name: true, institutionType: true, createdAt: true, promoter: { select: { id: true, name: true, legalType: true } }, _count: { select: { campuses: true, applications: true } } },
       orderBy: { createdAt: "desc" },
       take: 100

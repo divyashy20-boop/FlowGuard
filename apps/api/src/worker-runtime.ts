@@ -109,7 +109,7 @@ async function processFixture(job: BackgroundJob) {
   }
   const stagedRecords = await prisma.ingestionRecord.count({ where: { batchId: batch.id } });
   await prisma.backgroundJob.update({ where: { id: job.id }, data: { progress: 75, progressMessage: "Staging records for human reconciliation." } });
-  await prisma.$transaction(async tx => {
+  const notification = await prisma.$transaction(async tx => {
     await tx.ingestionBatch.update({ where: { id: batch.id }, data: { status: "COMPLETED", sourceChecksum: createHash("sha256").update(JSON.stringify(records)).digest("hex"), totalRecords: records.length, stagedRecords, completedAt: new Date(), errorSummary: null } });
     await tx.auditEvent.create({ data: { tenantId: job.tenantId, actorUserId: batch.createdByUserId, action: "SYNTHETIC_IMPORT_COMPLETED", resourceType: "IngestionBatch", resourceId: batch.id, metadata: { totalRecords: records.length, stagedRecords } } });
     const notification = await addNotification(tx, job.tenantId, batch.createdByUserId, "IMPORT_COMPLETED", "Synthetic import ready for review", `${stagedRecords} fictional fixture records are staged. Review each record before linking or creating an institution.`, "IngestionBatch", batch.id, `import-complete:${batch.id}`);
