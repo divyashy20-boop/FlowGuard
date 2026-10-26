@@ -3,13 +3,16 @@ import { z } from "zod";
 import { prisma } from "./db";
 import { requireAuth, requireRole } from "./security";
 import { enqueueJob } from "./job-service";
+import { Prisma } from "@prisma/client";
 
 export function registerJobRoutes(app: Express) {
   app.get("/jobs", requireAuth, async (req, res, next) => {
     try {
       const status = typeof req.query.status === "string" && ["PENDING", "RUNNING", "RETRY", "COMPLETED", "DEAD_LETTER"].includes(req.query.status) ? req.query.status as "PENDING" | "RUNNING" | "RETRY" | "COMPLETED" | "DEAD_LETTER" : undefined;
       const q = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 80) : "";
-      const items = await prisma.backgroundJob.findMany({ where: { tenantId: req.authUser!.tenantId, ...(status ? { status } : {}), ...(q ? { type: { contains: q, mode: "insensitive" } } : {}) }, select: { id: true, type: true, status: true, attempts: true, maxAttempts: true, progress: true, progressMessage: true, availableAt: true, startedAt: true, completedAt: true, lastError: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 100 });
+      const jobTypes = ["PROCESS_DOCUMENT", "ANALYZE_COMPLIANCE", "MATCH_APPLICATION", "INGEST_FIXTURE", "INGEST_LOCAL"];
+      const type = jobTypes.find(value => value.toLowerCase() === q.toLowerCase());
+      const items = await prisma.backgroundJob.findMany({ where: { tenantId: req.authUser!.tenantId, ...(status ? { status } : {}), ...(type ? { type: type as any } : {}) }, select: { id: true, type: true, status: true, attempts: true, maxAttempts: true, progress: true, progressMessage: true, availableAt: true, startedAt: true, completedAt: true, lastError: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 100 });
       return res.json({ items });
     } catch (error) { return next(error); }
   });
@@ -44,7 +47,7 @@ export function registerJobRoutes(app: Express) {
       if (!job) return res.status(404).json({ error: "Job not found" });
       if (job.status !== "DEAD_LETTER") return res.status(409).json({ error: "Only dead-letter jobs can be replayed" });
       const replay = await prisma.$transaction(async tx => {
-        const updated = await tx.backgroundJob.create({ data: { tenantId: job.tenantId, type: job.type, status: "PENDING", idempotencyKey: `${job.idempotencyKey}:replay:${Date.now()}`, payload: job.payload, maxAttempts: job.maxAttempts } });
+        const updated = await tx.backgroundJob.create({ data: { tenantId: job.tenantId, type: job.type, status: "PENDING", idempotencyKey: `${job.idempotencyKey}:replay:${Date.now()}`, payload: job.payload === null ? Prisma.JsonNull : job.payload as Prisma.InputJsonValue, maxAttempts: job.maxAttempts } });
         await tx.auditEvent.create({ data: { tenantId: auth.tenantId, actorUserId: auth.userId, action: "BACKGROUND_JOB_REPLAYED", resourceType: "BackgroundJob", resourceId: updated.id, metadata: { originalJobId: job.id, type: job.type } } });
         return updated;
       });

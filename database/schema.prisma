@@ -269,6 +269,7 @@ model Application {
   workflow          WorkflowDefinition?  @relation(fields: [workflowId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, status])
+  @@index([tenantId, createdAt, id])
   @@index([institutionId, academicYear])
 }
 
@@ -312,7 +313,6 @@ model Document {
   application      Application           @relation(fields: [applicationId], references: [id])
   extractions      EvidenceExtraction[]
   requirementLinks RequirementEvidence[]
-  reviewEvents     EvidenceReviewEvent[]
 
   @@unique([applicationId, storageKey])
   @@index([applicationId, uploadedAt])

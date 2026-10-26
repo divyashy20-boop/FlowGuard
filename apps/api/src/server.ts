@@ -142,7 +142,19 @@ app.get("/institutions", requireAuth, async (req, res, next) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 120) : "";
     const items = await prisma.institution.findMany({
-      where: { tenantId: req.authUser!.tenantId, archivedAt: null, ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { promoter: { name: { contains: q, mode: "insensitive" } } }, { externalIds: { some: { OR: [{ value: { contains: q, mode: "insensitive" } }, { namespace: { contains: q, mode: "insensitive" } }, { issuer: { contains: q, mode: "insensitive" } }] } }] } : {}) },
+      where: {
+        tenantId: req.authUser!.tenantId,
+        archivedAt: null,
+        ...(q ? { OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { promoter: { name: { contains: q, mode: "insensitive" } } },
+          { externalIds: { some: { OR: [
+            { value: { contains: q, mode: "insensitive" } },
+            { namespace: { contains: q, mode: "insensitive" } },
+            { issuer: { contains: q, mode: "insensitive" } }
+          ] } } }
+        ] } : {})
+      },
       select: { id: true, name: true, institutionType: true, createdAt: true, promoter: { select: { id: true, name: true, legalType: true } }, _count: { select: { campuses: true, applications: true } } },
       orderBy: { createdAt: "desc" },
       take: 100

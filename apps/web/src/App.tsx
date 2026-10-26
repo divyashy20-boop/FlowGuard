@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { AuditPage, GovernancePage, InspectionsEvcPage, IntelligenceQueuePage, RegistryPage, ReviewsPage } from "./Part4Pages";
 
@@ -564,6 +564,14 @@ async function openApplication(id: string) {
       setRequirementDescription("");
       await refresh();
     }, "Requirement added");
+  }
+
+  async function refreshCurrentApplication() {
+    if (!detail) return;
+    await runTask(async () => {
+      const [, , , updated] = await Promise.all([loadDocuments(detail.id), loadCompliance(detail.id), loadMatches(detail.id), request(`/applications/${detail.id}`), loadJobs()]);
+      setDetail(updated);
+    }, "Application, document, analysis and job statuses refreshed.");
   }
 
   const navItems = ["Overview", "Institutions", "Registry", "Applications", "Workflows", "Requirements", "Reviews", "Inspections & EVC", "Approvals & obligations", "Document review", "Compliance findings", "Matching review", "Imports", "Jobs", "Notifications", "Audit history"];
@@ -1189,14 +1197,6 @@ async function openApplication(id: string) {
     </main>
   );
 }
-
-  async function refreshCurrentApplication() {
-    if (!detail) return;
-    await runTask(async () => {
-      const [, , , updated] = await Promise.all([loadDocuments(detail.id), loadCompliance(detail.id), loadMatches(detail.id), request(`/applications/${detail.id}`), loadJobs()]);
-      setDetail(updated);
-    }, "Application, document, analysis and job statuses refreshed.");
-  }
 
 function ApplicationList({ applications, onOpen }: {
   applications: Application[];

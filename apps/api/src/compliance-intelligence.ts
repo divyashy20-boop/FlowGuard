@@ -29,7 +29,7 @@ export async function analyzeApplication(tenantId: string, applicationId: string
     include: {
       institution: { include: { promoter: true } },
       documents: { include: { extractions: true } },
-      workflow: { include: { requirements: { include: { evidence: { include: { document: { include: { extractions: true } } } } } } }
+      workflow: { include: { requirements: { include: { evidence: { include: { document: { include: { extractions: true } } } } } } } }
     }
   });
   if (!application) throw new Error("Application is not available in this tenant.");

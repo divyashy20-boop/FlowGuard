@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { prisma } from "./db";
 import { requireAuth, requireRole } from "./security";
+import { decodeApplicationCursor, encodeApplicationCursor } from "./application-cursor";
 
 
 function routeParam(value: string | string[] | undefined): string {
@@ -45,6 +46,12 @@ export function registerApplicationRoutes(app: Express) {
       const workflowCategory = typeof req.query.workflowCategory === "string" ? req.query.workflowCategory.trim().slice(0, 80) : "";
       const page = Math.max(1, Math.min(1000, Number(req.query.page) || 1));
       const pageSize = Math.max(1, Math.min(100, Number(req.query.pageSize) || 100));
+      if (req.query.pagination !== undefined && req.query.pagination !== "cursor") return res.status(400).json({ error: "Unsupported pagination mode" });
+      if (req.query.cursor !== undefined && typeof req.query.cursor !== "string") return res.status(400).json({ error: "Invalid application cursor" });
+      const cursorValue = typeof req.query.cursor === "string" ? req.query.cursor : "";
+      const cursorMode = req.query.pagination === "cursor" || Boolean(cursorValue);
+      const cursor = cursorValue ? decodeApplicationCursor(cursorValue) : null;
+      if (cursorValue && !cursor) return res.status(400).json({ error: "Invalid application cursor" });
       if (
         rawStatus !== undefined &&
         (typeof rawStatus !== "string" ||
@@ -62,8 +69,8 @@ export function registerApplicationRoutes(app: Express) {
             ? { status: rawStatus as typeof applicationStatuses[number] }
             : {})
         };
-      const [items, total] = await Promise.all([prisma.application.findMany({
-        where,
+      const items = await prisma.application.findMany({
+        where: cursor ? { AND: [where, { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] }] } : where,
         select: {
           id: true,
           applicationNumber: true,
@@ -77,12 +84,21 @@ export function registerApplicationRoutes(app: Express) {
           programme: { select: { id: true, name: true, discipline: true } },
           workflow: { select: { id: true, category: true, version: true } }
         },
-        orderBy: { updatedAt: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize
-      }), prisma.application.count({ where })]);
+        orderBy: cursorMode ? [{ createdAt: "desc" }, { id: "desc" }] : { updatedAt: "desc" },
+        skip: cursorMode ? undefined : (page - 1) * pageSize,
+        take: pageSize + (cursorMode ? 1 : 0)
+      });
 
-      return res.json({ items, total, page, pageSize });
+      if (!cursorMode) {
+        const total = await prisma.application.count({ where });
+        return res.json({ items, total, page, pageSize });
+      }
+      const hasMore = items.length > pageSize;
+      const pageItems = items.slice(0, pageSize);
+      const nextCursor = hasMore && pageItems.length
+        ? encodeApplicationCursor({ id: pageItems[pageItems.length - 1].id, createdAt: pageItems[pageItems.length - 1].createdAt })
+        : undefined;
+      return res.json({ items: pageItems, pageSize, hasMore, ...(nextCursor ? { nextCursor } : {}) });
     } catch (error) {
       return next(error);
     }
