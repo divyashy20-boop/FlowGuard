@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { AuditPage, GovernancePage, InspectionsEvcPage, IntelligenceQueuePage, RegistryPage, ReviewsPage } from "./Part4Pages";
+import { GraphExplorer } from "./GraphExplorer";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -566,7 +567,15 @@ async function openApplication(id: string) {
     }, "Requirement added");
   }
 
-  const navItems = ["Overview", "Institutions", "Registry", "Applications", "Workflows", "Requirements", "Reviews", "Inspections & EVC", "Approvals & obligations", "Document review", "Compliance findings", "Matching review", "Imports", "Jobs", "Notifications", "Audit history"];
+  async function refreshCurrentApplication() {
+    if (!detail) return;
+    await runTask(async () => {
+      const [, , , updated] = await Promise.all([loadDocuments(detail.id), loadCompliance(detail.id), loadMatches(detail.id), request(`/applications/${detail.id}`), loadJobs()]);
+      setDetail(updated);
+    }, "Application, document, analysis and job statuses refreshed.");
+  }
+
+  const navItems = ["Overview", "Institutions", "Registry", "Applications", "Graph", "Workflows", "Requirements", "Reviews", "Inspections & EVC", "Approvals & obligations", "Document review", "Compliance findings", "Matching review", "Imports", "Jobs", "Notifications", "Audit history"];
 
   return (
     <main className="page fg-page">
@@ -617,6 +626,8 @@ async function openApplication(id: string) {
           </div>
 
           {message && <div className="fg-message">{message}</div>}
+
+          {tab === "Graph" && <GraphExplorer token={token} request={request} />}
 
           {tab === "Overview" && (
             <>
@@ -1189,14 +1200,6 @@ async function openApplication(id: string) {
     </main>
   );
 }
-
-  async function refreshCurrentApplication() {
-    if (!detail) return;
-    await runTask(async () => {
-      const [, , , updated] = await Promise.all([loadDocuments(detail.id), loadCompliance(detail.id), loadMatches(detail.id), request(`/applications/${detail.id}`), loadJobs()]);
-      setDetail(updated);
-    }, "Application, document, analysis and job statuses refreshed.");
-  }
 
 function ApplicationList({ applications, onOpen }: {
   applications: Application[];

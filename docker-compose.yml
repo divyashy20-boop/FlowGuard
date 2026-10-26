@@ -11,5 +11,17 @@ services:
       - "5432:5432"
     volumes:
       - flowguard_pgdata:/var/lib/postgresql/data
+  neo4j:
+    image: neo4j:5-community
+    container_name: flowguard-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - flowguard_neo4jdata:/data
 volumes:
   flowguard_pgdata:
+  flowguard_neo4jdata:

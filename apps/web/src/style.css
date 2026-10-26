@@ -57,6 +57,41 @@ footer { border-top: 1px solid #ffffff18; padding-top: 22px; color: #6e7e96; fon
 .fg-form label { font-weight:600; font-size:13px; margin-top:4px; }
 .fg-form input:not([type="checkbox"]), .fg-form select, .fg-form textarea { width:100%; box-sizing:border-box; border:1px solid var(--border,#d0d5dd); border-radius:9px; padding:11px 12px; background:var(--input-bg,#fff); color:inherit; font:inherit; }
 .fg-form textarea { resize:vertical; }
+.fg-graph-panel { margin-top: 0; }
+.fg-graph-search { display:grid; grid-template-columns:minmax(180px,2fr) minmax(150px,1fr) auto; align-items:end; gap:10px; margin:18px 0; }
+.fg-graph-search label { grid-row:1; font-size:13px; font-weight:650; }
+.fg-graph-search input { grid-column:1; }
+.fg-graph-search label:nth-of-type(2) { grid-column:2; }
+.fg-graph-search select { grid-column:2; min-height:45px; border-radius:9px; padding:10px; }
+.fg-graph-search button { grid-column:3; margin:0; width:auto; white-space:nowrap; }
+.fg-graph-toolbar { display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin:12px 0; }
+.fg-graph-toolbar button { min-width:40px; padding:9px 12px; }
+.fg-graph-filter { display:flex; align-items:center; gap:6px; color:#a9b6ca; font-size:12px; }
+.fg-graph-filter select { max-width:190px; border-radius:8px; padding:8px; }
+.fg-graph-canvas { border:1px solid #34445b; border-radius:13px; background:radial-gradient(ellipse at center,#15243a,#0b1423 78%); overflow:hidden; }
+.fg-graph-canvas svg { display:block; width:100%; min-height:370px; touch-action:none; cursor:grab; user-select:none; }
+.fg-graph-canvas svg:active { cursor:grabbing; }
+.fg-graph-edge { cursor:pointer; }
+.fg-graph-edge line { stroke:#70839d; stroke-width:1.5; opacity:.75; }
+.fg-graph-edge text { text-anchor:middle; fill:#c7d5e8; font-size:9px; paint-order:stroke; stroke:#0b1423; stroke-width:4px; stroke-linejoin:round; pointer-events:none; }
+.fg-graph-edge:hover line,.fg-graph-edge-selected line { stroke:#9ff0cb; stroke-width:3; opacity:1; }
+.fg-graph-node { cursor:pointer; outline:none; }
+.fg-graph-node circle { fill:#1c2d44; stroke:#6d829e; stroke-width:2; }
+.fg-graph-node:hover circle,.fg-graph-node:focus circle,.fg-graph-node-selected circle { fill:#1c473e; stroke:#9ff0cb; stroke-width:3; }
+.fg-graph-node text { text-anchor:middle; pointer-events:none; }
+.fg-graph-type { fill:#9ff0cb; font-size:8px; font-weight:700; }
+.fg-graph-label { fill:#f4f7fb; font-size:8px; }
+.fg-graph-columns { display:grid; grid-template-columns:minmax(220px,1fr) minmax(260px,1.2fr); gap:18px; margin-top:18px; }
+.fg-graph-records,.fg-graph-details { min-width:0; padding:16px; border:1px solid #ffffff20; border-radius:12px; }
+.fg-graph-records h3,.fg-graph-details h3 { margin:0 0 10px; }
+.fg-graph-records ul { list-style:none; margin:0; padding:0; max-height:340px; overflow:auto; }
+.fg-graph-records li { border-top:1px solid #ffffff18; }
+.fg-graph-record-button { width:100%; margin:0; padding:10px 4px; display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left; background:transparent; color:#f4f7fb; }
+.fg-graph-record-button span { color:#a9b6ca; font-size:11px; }
+.fg-graph-details dl { display:grid; grid-template-columns:minmax(95px,.8fr) minmax(0,1.5fr); gap:8px 14px; overflow-wrap:anywhere; }
+.fg-graph-details dt { color:#a9b6ca; font-size:12px; }
+.fg-graph-details dd { margin:0; font-size:13px; }
+.fg-graph-footnote { margin-top:18px; font-size:12px; }
 .fg-form button { margin-top:8px; }
 .fg-check { display:flex; align-items:center; gap:9px; font-weight:400 !important; }
 .fg-check input { width:16px; height:16px; }
@@ -98,6 +133,10 @@ footer { border-top: 1px solid #ffffff18; padding-top: 22px; color: #6e7e96; fon
   .fg-welcome { align-items:flex-start; flex-direction:column; }
   .fg-facts { grid-template-columns:1fr; }
   .fg-panel { padding:18px; }
+  .fg-graph-search { grid-template-columns:1fr; }
+  .fg-graph-search label,.fg-graph-search input,.fg-graph-search select,.fg-graph-search button { grid-column:1; grid-row:auto; }
+  .fg-graph-columns { grid-template-columns:1fr; }
+  .fg-graph-canvas svg { min-height:300px; }
   .fg-nav { gap:5px; }
   .fg-nav button { padding:9px 10px; }
 }

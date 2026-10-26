@@ -145,6 +145,7 @@ model Tenant {
   notifications Notification[]
   ingestionBatches IngestionBatch[]
   matchCandidates MatchCandidate[]
+  graphProjection GraphProjectionState?
 }
 
 model User {
@@ -312,7 +313,6 @@ model Document {
   application      Application           @relation(fields: [applicationId], references: [id])
   extractions      EvidenceExtraction[]
   requirementLinks RequirementEvidence[]
-  reviewEvents     EvidenceReviewEvent[]
 
   @@unique([applicationId, storageKey])
   @@index([applicationId, uploadedAt])
@@ -527,6 +527,21 @@ model OutboxEvent {
   createdAt     DateTime  @default(now())
 
   @@index([processedAt, availableAt])
+  @@index([eventType, aggregateId, processedAt, availableAt])
+}
+
+model GraphProjectionState {
+  id            String   @id @default(cuid())
+  tenantId      String   @unique
+  version       Int      @default(0)
+  nodeCount     Int      @default(0)
+  edgeCount     Int      @default(0)
+  lastSyncedAt  DateTime?
+  lastError     String?
+  leaseOwner    String?
+  leaseExpiresAt DateTime?
+  updatedAt     DateTime @updatedAt
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model BackgroundJob {

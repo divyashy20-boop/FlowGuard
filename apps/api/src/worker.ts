@@ -1,6 +1,7 @@
 import { env } from "./env";
 import { prisma } from "./db";
 import { runWorkerOnce } from "./worker-runtime";
+import { graphStore } from "./graph-store";
 
 let stopping = false;
 process.once("SIGINT", () => { stopping = true; });
@@ -15,6 +16,7 @@ async function main() {
     }
   } finally {
     await prisma.$disconnect();
+    await graphStore.close();
     console.info("FlowGuard worker stopped");
   }
 }

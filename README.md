@@ -10,6 +10,7 @@ FlowGuard is a locally runnable, multi-tenant workflow and evidence-intelligence
 - Versioned workflows, deficiencies and responses, reviews, inspections/EVC, formal decisions, approvals and obligations
 - Private document storage, quarantine states, extraction provenance, compliance analysis and review queues
 - Background worker, transactional outbox, jobs and in-app notifications
+- Neo4j graph projection with typed institutional/workflow relationships, provenance and tenant-scoped traversal
 - Synthetic repeatable SIH demo data and import fixture
 
 ## Requirements
@@ -21,16 +22,19 @@ FlowGuard is a locally runnable, multi-tenant workflow and evidence-intelligence
 ## Local setup
 
 1. Copy `.env.example` to `.env` and `apps/web/.env.example` to `apps/web/.env`.
-2. Set `POSTGRES_PASSWORD` and the password in `DATABASE_URL` to the same local value; replace the `JWT_SECRET` placeholder with at least 32 characters and set `SEED_ADMIN_PASSWORD` to at least 16 characters.
-3. Start PostgreSQL: `docker compose up -d postgres`.
+2. Set `POSTGRES_PASSWORD` and the password in `DATABASE_URL` to the same local value; set `NEO4J_PASSWORD` to a local graph database password; replace the `JWT_SECRET` placeholder with at least 32 characters and set `SEED_ADMIN_PASSWORD` to at least 16 characters.
+3. Start PostgreSQL and Neo4j: `docker compose up -d postgres neo4j`.
 4. Install the locked dependencies: `npm ci`.
 5. Generate Prisma client and apply migrations: `npm run db:generate`, then `npm run db:migrate`.
 6. Seed the local admin, then the fictional demo records: `npm run db:seed` and `npm run db:seed:demo`.
-7. Start the API, worker and frontend in separate terminals: `npm run dev:api`, `npm run dev:worker` and `npm run dev:web`.
+7. Build the initial graph projection: `npm run graph:rebuild`. Later domain writes enqueue tenant refreshes transactionally; the worker retries failed graph syncs with backoff.
+8. Start the API, worker and frontend in separate terminals: `npm run dev:api`, `npm run dev:worker` and `npm run dev:web`.
 
 Open http://localhost:5173. Sign in with `admin@flowguard.local` and the local password configured in `SEED_ADMIN_PASSWORD`. The API defaults to http://localhost:4000; `/health` checks the HTTP process and `/ready` checks database readiness.
 
 For the full synthetic walkthrough, configuration and production limits, see [docs/PART4_OPERATIONS.md](docs/PART4_OPERATIONS.md).
+
+For graph ownership, synchronization, rebuild and deployment details, see [docs/GRAPH_ARCHITECTURE.md](docs/GRAPH_ARCHITECTURE.md).
 
 ## Important
 

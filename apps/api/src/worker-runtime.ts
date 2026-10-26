@@ -9,6 +9,7 @@ import { analyzeApplication } from "./compliance-intelligence";
 import { matchApplication, similarity } from "./matching-intelligence";
 import { localJsonIngestionAdapter, syntheticFixtureAdapter } from "./ingestion-adapters";
 import { emailAdapter } from "./notification-adapters";
+import { graphStore, GraphProjectionBusyError } from "./graph-store";
 
 const workerId = `${process.pid}-${randomUUID()}`;
 const leaseMs = 60_000;
@@ -32,9 +33,9 @@ async function addNotification(tx: Prisma.TransactionClient, tenantId: string, u
 async function dispatchOneOutboxEvent() {
   const staleBefore = new Date(Date.now() - leaseMs);
   return prisma.$transaction(async tx => {
-    const event = await tx.outboxEvent.findFirst({ where: { processedAt: null, OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }] }, orderBy: { createdAt: "asc" } });
+    const event = await tx.outboxEvent.findFirst({ where: { eventType: "JOB_REQUESTED", processedAt: null, OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }] }, orderBy: { createdAt: "asc" } });
     if (!event) return false;
-    const claimed = await tx.outboxEvent.updateMany({ where: { id: event.id, processedAt: null, OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }] }, data: { lockedAt: new Date(), lockOwner: workerId, attempts: { increment: 1 } } });
+    const claimed = await tx.outboxEvent.updateMany({ where: { id: event.id, eventType: "JOB_REQUESTED", processedAt: null, OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }] }, data: { lockedAt: new Date(), lockOwner: workerId, attempts: { increment: 1 } } });
     if (!claimed.count) return false;
     const request = event.payload as Record<string, unknown>;
     const type = request.type;
@@ -52,6 +53,34 @@ async function dispatchOneOutboxEvent() {
     await tx.outboxEvent.update({ where: { id: event.id }, data: { processedAt: new Date(), lastError: null, lockedAt: null, lockOwner: null } });
     return true;
   });
+}
+
+async function dispatchOneGraphEvent() {
+  if (!graphStore.isConfigured()) return false;
+  const staleBefore = new Date(Date.now() - leaseMs);
+  const event = await prisma.$transaction(async tx => {
+    const candidate = await tx.outboxEvent.findFirst({ where: { eventType: "GRAPH_REFRESH_REQUESTED", processedAt: null, availableAt: { lte: new Date() }, OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }] }, orderBy: { createdAt: "asc" } });
+    if (!candidate) return null;
+    const claimed = await tx.outboxEvent.updateMany({ where: { id: candidate.id, eventType: "GRAPH_REFRESH_REQUESTED", processedAt: null, OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }] }, data: { lockedAt: new Date(), lockOwner: workerId, attempts: { increment: 1 } } });
+    return claimed.count ? { ...candidate, attempts: candidate.attempts + 1 } : null;
+  });
+  if (!event) return false;
+
+  try {
+    await graphStore.rebuildTenant(event.aggregateId);
+    await prisma.outboxEvent.updateMany({ where: { id: event.id, lockOwner: workerId, processedAt: null }, data: { processedAt: new Date(), lastError: null, lockedAt: null, lockOwner: null } });
+  } catch (error) {
+    if (error instanceof GraphProjectionBusyError) {
+      await prisma.outboxEvent.updateMany({ where: { id: event.id, lockOwner: workerId, processedAt: null }, data: { attempts: { decrement: 1 }, availableAt: new Date(Date.now() + 5_000), lastError: null, lockedAt: null, lockOwner: null } });
+      return true;
+    }
+    const dead = event.attempts >= 10;
+    const retryDelay = Math.min(300_000, 1_000 * (2 ** Math.max(0, event.attempts - 1)));
+    await prisma.outboxEvent.updateMany({ where: { id: event.id, lockOwner: workerId, processedAt: null }, data: { ...(dead ? { processedAt: new Date() } : { availableAt: new Date(Date.now() + retryDelay) }), lastError: dead ? "Graph projection failed after bounded retries." : "Graph projection failed; retry scheduled.", lockedAt: null, lockOwner: null } });
+    await prisma.graphProjectionState.updateMany({ where: { tenantId: event.aggregateId }, data: { lastError: dead ? "Graph projection failed after bounded retries." : "Graph projection retry scheduled." } }).catch(() => undefined);
+    console.error("Graph projection failed", { tenantId: event.aggregateId, attempt: event.attempts, errorName: error instanceof Error ? error.name : "UnknownError" });
+  }
+  return true;
 }
 
 async function processDocument(job: BackgroundJob) {
@@ -109,7 +138,7 @@ async function processFixture(job: BackgroundJob) {
   }
   const stagedRecords = await prisma.ingestionRecord.count({ where: { batchId: batch.id } });
   await prisma.backgroundJob.update({ where: { id: job.id }, data: { progress: 75, progressMessage: "Staging records for human reconciliation." } });
-  await prisma.$transaction(async tx => {
+  const notification = await prisma.$transaction(async tx => {
     await tx.ingestionBatch.update({ where: { id: batch.id }, data: { status: "COMPLETED", sourceChecksum: createHash("sha256").update(JSON.stringify(records)).digest("hex"), totalRecords: records.length, stagedRecords, completedAt: new Date(), errorSummary: null } });
     await tx.auditEvent.create({ data: { tenantId: job.tenantId, actorUserId: batch.createdByUserId, action: "SYNTHETIC_IMPORT_COMPLETED", resourceType: "IngestionBatch", resourceId: batch.id, metadata: { totalRecords: records.length, stagedRecords } } });
     const notification = await addNotification(tx, job.tenantId, batch.createdByUserId, "IMPORT_COMPLETED", "Synthetic import ready for review", `${stagedRecords} fictional fixture records are staged. Review each record before linking or creating an institution.`, "IngestionBatch", batch.id, `import-complete:${batch.id}`);
@@ -195,9 +224,10 @@ async function claimJob() {
 }
 
 export async function runWorkerOnce() {
+  const projected = await dispatchOneGraphEvent();
   const dispatched = await dispatchOneOutboxEvent();
   const job = await claimJob();
-  if (!job) return dispatched;
+  if (!job) return projected || dispatched;
   try {
     await runJob(job);
     await prisma.backgroundJob.update({ where: { id: job.id }, data: { status: "COMPLETED", progress: 100, progressMessage: "Completed.", completedAt: new Date(), lockedAt: null, lockOwner: null, lastError: null } });
